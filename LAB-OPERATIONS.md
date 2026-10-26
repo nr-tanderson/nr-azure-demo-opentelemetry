@@ -18,12 +18,12 @@ Use the previously documented Azure secrets/backend variables plus `LAB_ACR_NAME
 ## Workflow order
 
 1. Build AKS: save plan -> inspect run summary -> reviewer approval -> apply the exact saved plan -> publish active handoff with generation UUID.
-2. Deploy/reset the payment lab from the separate ReliBank repo. It reads the current handoff, validates generation and acquires the shared blob lease before deployment. No hardcoded public IP survives a rebuild.
-3. Pause lab from its app workflow. Destroy AKS: save destroy plan -> inspect -> approval -> acquire shared lease -> publish paused state -> suspend jobs -> apply exact destroy plan -> publish destroyed state.
+2. Select exactly one app repo and run its manual deploy workflow. ReliBank, OTel Astronomy Shop, and PetClinic each have their own local source checkout and deployment workflow; all read the active handoff, validate generation, and acquire the shared blob lease. No hardcoded public IP survives a rebuild.
+3. Uninstall the selected app or pause ReliBank's lab before destroying infrastructure. Destroy AKS: save plan -> inspect -> approval -> acquire shared lease -> publish paused state -> suspend ReliBank schedules -> apply exact destroy plan -> publish destroyed state.
 
 After destroy, the persistent registry and storage remain billable and retain the baseline/fixed images and Terraform state. Deleting those is a different, permanent cleanup step. Rebuild then reset to the saved baseline digest to repeat the demo; do not reset Git history.
 
-The operation lock prevents simultaneous use by the payment-lab, Astronomy Shop, and reviewed-infra workflows. PetClinic and full ReliBank banking-UI deployments are not included in this payment lab.
+The operation lock prevents simultaneous use by the ReliBank lab, Astronomy Shop, PetClinic, and reviewed-infra workflows. The ReliBank payment workflow is a synthetic code-fix exercise, not the full ReliBank banking UI.
 
 New Relic is intentionally not configured yet. The ReliBank payment workflow defaults monitoring off and uses only fresh `LAB_NR_*` secrets after explicit opt-in. The Astronomy Shop workflow also has a default-off monitoring input. No existing New Relic key is read by either lab path.
 
