@@ -18,36 +18,8 @@ concurrency:
 
 jobs:
   destroy:
-    runs-on: ubuntu-latest
-    env:
-      TFSTATE_RESOURCE_GROUP: ${{ vars.TFSTATE_RESOURCE_GROUP }}
-      TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
-      TFSTATE_CONTAINER: ${{ vars.TFSTATE_CONTAINER }}
-      TFSTATE_KEY: ${{ vars.TFSTATE_KEY }}
-      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      CONFIRMATION: ${{ inputs.confirmation }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Require explicit confirmation
-        run: test "$CONFIRMATION" = "DESTROY-NR-AKS-DEMO"
-      - uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.9.8
-      - name: Initialize Terraform backend
-        run: bash scripts/init-terraform.sh
-      - name: Destroy demo resources
-        run: |
-          location=$(terraform -chdir=infra output -raw location)
-          name_prefix=$(terraform -chdir=infra output -raw name_prefix)
-          principal_object_id=$(terraform -chdir=infra output -raw github_actions_principal_object_id)
-          terraform -chdir=infra destroy -input=false -auto-approve \
-            -var="location=${location}" \
-            -var="name_prefix=${name_prefix}" \
-            -var="github_actions_principal_object_id=${principal_object_id}"
+    uses: ./.github/workflows/lab-infrastructure.yml
+    with:
+      operation: destroy
+      confirmation: ${{ inputs.confirmation }}
+    secrets: inherit
