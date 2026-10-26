@@ -1,7 +1,17 @@
-name: Deploy OpenTelemetry Astronomy Shop
+name: OpenTelemetry Astronomy Shop
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: Install the pinned chart or remove this app from the active lab cluster
+        type: choice
+        default: deploy
+        options: [deploy, uninstall]
+      enable_monitoring:
+        description: Enable New Relic only after separately configuring a new lab key
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -12,17 +22,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  operate:
     runs-on: ubuntu-latest
+    environment: lab-application
     env:
-      TFSTATE_RESOURCE_GROUP: ${{ vars.TFSTATE_RESOURCE_GROUP }}
       TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
       TFSTATE_CONTAINER: ${{ vars.TFSTATE_CONTAINER }}
       TFSTATE_KEY: ${{ vars.TFSTATE_KEY }}
       AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
       AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
       AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      NEW_RELIC_LICENSE_KEY: ${{ secrets.NEW_RELIC_LICENSE_KEY }}
+      APP_OPERATION: ${{ inputs.operation }}
+      MONITORING_ENABLED: ${{ inputs.enable_monitoring && 'true' || 'false' }}
+      NEW_RELIC_LICENSE_KEY: ${{ inputs.enable_monitoring && secrets.LAB_NR_LICENSE_KEY || '' }}
       NEW_RELIC_OTLP_ENDPOINT: ${{ vars.NEW_RELIC_OTLP_ENDPOINT }}
     steps:
       - uses: actions/checkout@v4
@@ -31,9 +43,6 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.9.8
       - uses: azure/setup-helm@v4
         with:
           version: v3.19.0
@@ -41,65 +50,8 @@ jobs:
       - uses: azure/use-kubelogin@v1
         with:
           kubelogin-version: v0.2.10
-      - name: Initialize Terraform backend
-        run: bash scripts/init-terraform.sh
-      - name: Read cluster outputs
-        id: infra
-        run: |
-          echo "resource_group=$(terraform -chdir=infra output -raw resource_group_name)" >> "$GITHUB_OUTPUT"
-          echo "cluster=$(terraform -chdir=infra output -raw cluster_name)" >> "$GITHUB_OUTPUT"
-      - name: Configure AKS access with Azure RBAC
-        env:
-          RESOURCE_GROUP: ${{ steps.infra.outputs.resource_group }}
-          CLUSTER_NAME: ${{ steps.infra.outputs.cluster }}
-        run: |
-          az aks get-credentials --resource-group "$RESOURCE_GROUP" --name "$CLUSTER_NAME" --overwrite-existing
-          kubelogin convert-kubeconfig -l azurecli
-          kubectl get nodes
-      - name: Install New Relic Kubernetes monitoring
-        env:
-          CLUSTER_NAME: ${{ steps.infra.outputs.cluster }}
-        run: |
-          : "${NEW_RELIC_LICENSE_KEY:?Add NEW_RELIC_LICENSE_KEY as a GitHub Actions secret}"
-          helm repo add newrelic https://helm-charts.newrelic.com
-          helm repo update newrelic
-          helm upgrade --install newrelic-bundle newrelic/nri-bundle \
-            --namespace newrelic --create-namespace \
-            --set-string global.licenseKey="$NEW_RELIC_LICENSE_KEY" \
-            --set-string global.cluster="$CLUSTER_NAME" \
-            --set newrelic-infrastructure.enabled=true \
-            --set newrelic-logging.enabled=false \
-            --set kube-state-metrics.enabled=true \
-            --set nri-kube-events.enabled=true \
-            --wait --timeout 10m
-      - name: Create collector credential
-        run: |
-          kubectl create namespace otel-demo --dry-run=client -o yaml | kubectl apply -f -
-          kubectl create secret generic newrelic-license \
-            --namespace otel-demo \
-            --from-literal=license-key="$NEW_RELIC_LICENSE_KEY" \
-            --dry-run=client -o yaml | kubectl apply -f -
-      - name: Install pinned OpenTelemetry Astronomy Shop chart
-        run: |
-          export NEW_RELIC_OTLP_ENDPOINT="${NEW_RELIC_OTLP_ENDPOINT:-https://otlp.nr-data.net}"
-          helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
-          helm repo update open-telemetry
-          values_file=$(mktemp)
-          trap 'rm -f "$values_file"' EXIT
-          envsubst '${NEW_RELIC_OTLP_ENDPOINT}' < deploy/otel-demo-values.yaml > "$values_file"
-          helm upgrade --install otel-demo open-telemetry/opentelemetry-demo \
-            --version 0.42.6 \
-            --namespace otel-demo \
-            --values "$values_file" \
-            --wait --timeout 15m
-      - name: Verify the Astronomy Shop frontend
-        run: |
-          kubectl get pods --namespace otel-demo
-          kubectl port-forward --namespace otel-demo service/frontend-proxy 18080:8080 >/tmp/otel-demo-port-forward.log 2>&1 &
-          port_forward_pid=$!
-          trap 'kill "$port_forward_pid" 2>/dev/null || true' EXIT
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:18080/ >/dev/null; then break; fi
-            sleep 2
-          done
-          curl --fail --silent --output /dev/null --write-out 'Astronomy Shop HTTP %{http_code}\n' http://127.0.0.1:18080/
+      - name: Validate optional monitoring credentials
+        if: ${{ inputs.enable_monitoring }}
+        run: ': "${NEW_RELIC_LICENSE_KEY:?Configure a new LAB_NR_LICENSE_KEY before opting in}"'
+      - name: Operate on active cluster under the shared lab lock
+        run: bash scripts/lab-lock.sh bash scripts/deploy-otel-demo.sh

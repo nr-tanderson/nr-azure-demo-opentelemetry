@@ -4,6 +4,16 @@ variable "location" {
   default     = "eastus"
 }
 
+variable "registry_name" {
+  description = "Existing persistent ACR created by the state bootstrap, retained through cluster teardown."
+  type        = string
+}
+
+variable "registry_resource_group" {
+  description = "Persistent state/artifact resource group, outside cluster teardown."
+  type        = string
+}
+
 variable "name_prefix" {
   description = "Lowercase prefix used for demo resource names."
   type        = string

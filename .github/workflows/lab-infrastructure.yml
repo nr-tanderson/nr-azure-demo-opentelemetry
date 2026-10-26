@@ -1,0 +1,102 @@
+name: Reusable reviewed lab infrastructure
+on:
+  workflow_call:
+    inputs:
+      operation:
+        required: true
+        type: string
+      location:
+        default: eastus
+        type: string
+      name_prefix:
+        default: nrobsdemo
+        type: string
+      confirmation:
+        default: ''
+        type: string
+permissions:
+  contents: read
+  id-token: write
+env:
+  TFSTATE_RESOURCE_GROUP: ${{ vars.TFSTATE_RESOURCE_GROUP }}
+  TFSTATE_STORAGE_ACCOUNT: ${{ vars.TFSTATE_STORAGE_ACCOUNT }}
+  TFSTATE_CONTAINER: ${{ vars.TFSTATE_CONTAINER }}
+  TFSTATE_KEY: ${{ vars.TFSTATE_KEY }}
+  AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_USE_OIDC: 'true'
+  TF_VAR_github_actions_principal_object_id: ${{ vars.AZURE_CLIENT_OBJECT_ID }}
+  TF_VAR_registry_name: ${{ vars.LAB_ACR_NAME }}
+  TF_VAR_registry_resource_group: ${{ vars.TFSTATE_RESOURCE_GROUP }}
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate request
+        env:
+          OPERATION: ${{ inputs.operation }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          [[ "$OPERATION" == build || "$OPERATION" == destroy ]]
+          if [[ "$OPERATION" == destroy ]]; then test "$CONFIRMATION" = DESTROY-NR-AKS-DEMO; fi
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - run: bash scripts/init-terraform.sh
+      - name: Save plan for review
+        env:
+          OPERATION: ${{ inputs.operation }}
+          TF_VAR_location: ${{ inputs.location }}
+          TF_VAR_name_prefix: ${{ inputs.name_prefix }}
+        run: |
+          args=()
+          if [[ "$OPERATION" == destroy ]]; then
+            args+=(-destroy)
+            TF_VAR_location=$(terraform -chdir=infra output -raw location)
+            TF_VAR_name_prefix=$(terraform -chdir=infra output -raw name_prefix)
+            export TF_VAR_location TF_VAR_name_prefix
+          fi
+          terraform -chdir=infra plan -input=false "${args[@]}" -out=lab.tfplan
+          terraform -chdir=infra show -no-color lab.tfplan >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reviewed-infrastructure-plan
+          path: infra/lab.tfplan
+          retention-days: 1
+  apply:
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: lab-infrastructure
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - uses: azure/setup-kubectl@v4
+      - uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: v0.2.10
+      - run: bash scripts/init-terraform.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: reviewed-infrastructure-plan
+          path: infra
+      - name: Apply the reviewed plan under the shared lab lock
+        env:
+          OPERATION: ${{ inputs.operation }}
+        run: bash scripts/lab-lock.sh bash scripts/apply-lab-plan.sh "$OPERATION"
