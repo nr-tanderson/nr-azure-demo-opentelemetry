@@ -25,12 +25,15 @@ resource "random_id" "suffix" {
   byte_length = 3
 }
 
+resource "random_uuid" "generation" {}
+
 locals {
   resource_group_name = "rg-${var.name_prefix}"
   resource_tags = {
-    OWNER      = "TANDERSON"
-    PROJECT    = "nr-azure-demo-opentelemetry"
-    MANAGED_BY = "Terraform"
+    OWNER          = "TANDERSON"
+    PROJECT        = "nr-azure-demo-opentelemetry"
+    MANAGED_BY     = "Terraform"
+    LAB_GENERATION = random_uuid.generation.result
   }
 }
 
@@ -86,5 +89,24 @@ resource "azurerm_role_assignment" "github_aks_admin" {
   scope                = azurerm_kubernetes_cluster.demo.id
   role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
   principal_id         = var.github_actions_principal_object_id
+  principal_type       = "ServicePrincipal"
+}
+
+data "azurerm_container_registry" "lab" {
+  name                = var.registry_name
+  resource_group_name = var.registry_resource_group
+}
+
+resource "azurerm_role_assignment" "lab_push" {
+  scope                = data.azurerm_container_registry.lab.id
+  role_definition_name = "AcrPush"
+  principal_id         = var.github_actions_principal_object_id
+  principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "lab_pull" {
+  scope                = data.azurerm_container_registry.lab.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_kubernetes_cluster.demo.kubelet_identity[0].object_id
   principal_type       = "ServicePrincipal"
 }
