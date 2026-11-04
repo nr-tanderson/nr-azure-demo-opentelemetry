@@ -17,6 +17,7 @@ terraform {
 
 provider "azurerm" {
   features {}
+  resource_provider_registrations = "none"
 }
 
 data "azurerm_client_config" "current" {}
@@ -37,16 +38,14 @@ locals {
   }
 }
 
-resource "azurerm_resource_group" "demo" {
-  name     = local.resource_group_name
-  location = var.location
-  tags     = local.resource_tags
+data "azurerm_resource_group" "demo" {
+  name = local.resource_group_name
 }
 
 resource "azurerm_kubernetes_cluster" "demo" {
   name                   = "${var.name_prefix}-aks"
-  location               = azurerm_resource_group.demo.location
-  resource_group_name    = azurerm_resource_group.demo.name
+  location               = var.location
+  resource_group_name    = data.azurerm_resource_group.demo.name
   dns_prefix             = "${var.name_prefix}-${random_id.suffix.hex}"
   sku_tier               = "Free"
   local_account_disabled = true

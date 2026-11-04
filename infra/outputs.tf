@@ -1,5 +1,5 @@
 output "resource_group_name" {
-  value = azurerm_resource_group.demo.name
+  value = data.azurerm_resource_group.demo.name
 }
 
 output "location" {
@@ -20,7 +20,7 @@ output "cluster_name" {
 
 output "lab_connection" {
   value = {
-    resource_group = azurerm_resource_group.demo.name
+    resource_group = data.azurerm_resource_group.demo.name
     cluster        = azurerm_kubernetes_cluster.demo.name
     generation     = random_uuid.generation.result
     registry       = data.azurerm_container_registry.lab.name
