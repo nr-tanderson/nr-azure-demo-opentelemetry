@@ -14,7 +14,7 @@ The **Build AKS infrastructure** workflow creates the cluster only after plan re
 
 ## Capacity and cost
 
-The Terraform default is one `Standard_D4as_v5` node (16 GiB), suitable for one demo app at a time but non-HA. Verify VM availability and regional price before building. The persistent state storage and ACR remain billable after cluster teardown.
+The lab is capped at one `Standard_D4as_v5` node (16 GiB), suitable for one demo app at a time but non-HA. Verify VM availability and regional price before building. Destroy the cluster when the session ends; the persistent state storage and ACR remain billable after cluster teardown.
 
 ## Prerequisites
 
