@@ -37,9 +37,9 @@ variable "node_count" {
 }
 
 variable "node_vm_size" {
-  description = "AKS node VM size; the upstream demo requires about 6 GB free memory. Verify regional price and availability."
+  description = "Single-node size for the full ReliBank app. Verify regional price and availability before building."
   type        = string
-  default     = "Standard_D4as_v5"
+  default     = "Standard_D8as_v5"
 }
 
 variable "github_actions_principal_object_id" {

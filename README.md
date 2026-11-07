@@ -10,11 +10,11 @@ Each app repo has a manual deploy/uninstall workflow that reads the active clust
 
 ## Workflows
 
-The **Build AKS infrastructure** workflow creates the cluster only after plan review and the `lab-infrastructure` approval. After provisioning, the Azure owner grants Reader and Tag Contributor on the new managed node resource group using commands in the run summary, then approves `lab-node-access` to tag resources and activate the lab. **Destroy AKS infrastructure** requires typed confirmation, a reviewed destroy plan, and infrastructure approval. The persistent registry, state account, deployment identity, and empty bootstrap-owned demo resource group remain after cluster teardown. See [LAB-OPERATIONS.md](LAB-OPERATIONS.md) for scoped permissions.
+The **Build AKS infrastructure** and **Destroy AKS infrastructure** workflows are manually dispatched from `main`; lab environments do not require human reviewers. Build applies the saved Terraform plan and publishes the handoff after tagging. Destroy requires the typed `DESTROY-NR-AKS-DEMO` confirmation and applies its saved plan. The persistent registry, state account, deployment identity, and empty bootstrap-owned demo resource group remain after cluster teardown. See [LAB-OPERATIONS.md](LAB-OPERATIONS.md) for scoped permissions.
 
 ## Capacity and cost
 
-The lab is capped at one `Standard_D4as_v5` node (16 GiB), suitable for one demo app at a time but non-HA. Verify VM availability and regional price before building. Destroy the cluster when the session ends; the persistent state storage and ACR remain billable after cluster teardown.
+The lab is capped at one `Standard_D8as_v5` node (8 vCPU, 32 GiB), non-HA. East US public Linux list price is about `$0.344/hour` (`$8.26` per 24 hours) for VM compute; disks, public networking, registry, and storage are additional. Destroy the cluster when the session ends; the persistent state storage and ACR remain billable after cluster teardown.
 
 ## Prerequisites
 
