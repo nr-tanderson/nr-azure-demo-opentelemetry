@@ -10,21 +10,21 @@ Each app repo has a manual deploy/uninstall workflow that reads the active clust
 
 ## Workflows
 
-The **Build AKS infrastructure** workflow creates the cluster only after plan review and the `lab-infrastructure` approval. **Destroy AKS infrastructure** requires typed confirmation, a reviewed destroy plan, and the same approval. The persistent registry and state account remain after cluster teardown.
+The **Build AKS infrastructure** workflow creates the cluster only after plan review and the `lab-infrastructure` approval. After provisioning, the Azure owner grants Reader and Tag Contributor on the new managed node resource group using commands in the run summary, then approves `lab-node-access` to tag resources and activate the lab. **Destroy AKS infrastructure** requires typed confirmation, a reviewed destroy plan, and infrastructure approval. The persistent registry, state account, deployment identity, and empty bootstrap-owned demo resource group remain after cluster teardown. See [LAB-OPERATIONS.md](LAB-OPERATIONS.md) for scoped permissions.
 
 ## Capacity and cost
 
-The Terraform default is one `Standard_D4as_v5` node (16 GiB), suitable for one demo app at a time but non-HA. Verify VM availability and regional price before building. The persistent state storage and ACR remain billable after cluster teardown.
+The lab is capped at one `Standard_D4as_v5` node (16 GiB), suitable for one demo app at a time but non-HA. Verify VM availability and regional price before building. Destroy the cluster when the session ends; the persistent state storage and ACR remain billable after cluster teardown.
 
 ## Prerequisites
 
 - Azure CLI, Terraform 1.9.8+, and a GitHub repository containing this project.
-- A GitHub Actions OIDC application/service principal with a federated credential restricted to this repository. Grant it permission to create the demo resource group/AKS cluster and role assignments, plus `Storage Blob Data Contributor` on the Terraform state account. No client secret is used.
+- A GitHub Actions OIDC identity with federated credentials restricted to this repository and its protected environments. A user-assigned managed identity avoids needing Entra app-registration privileges. Use only the lab-scoped roles in [LAB-OPERATIONS.md](LAB-OPERATIONS.md); no subscription-wide deployment write access or client secret is used. Register the required Azure resource providers using an owner account during bootstrap.
 - No New Relic key is required for infra provisioning or the default ReliBank/OTel deployments.
 
 The cluster disables local AKS accounts and enables Azure RBAC. Terraform grants the GitHub OIDC identity the `Azure Kubernetes Service RBAC Cluster Admin` role on this demo cluster so deployment does not use `--admin` kubeconfig credentials.
 
-Terraform applies `OWNER=TANDERSON`, `PROJECT=nr-azure-demo-opentelemetry`, and `MANAGED_BY=Terraform` to the demo resource group, AKS cluster, and node pool. The state bootstrap script applies the same tags to the separate state resource group, storage account, and ACR. The reviewed build workflow also tags supported AKS-managed resources in the node resource group. Azure role assignments do not support tags; Azure Policy is required for inheritance beyond resources that support tags.
+Terraform applies `OWNER=TANDERSON`, `PROJECT=nr-azure-demo-opentelemetry`, and `MANAGED_BY=Terraform` to the AKS cluster and node pool. The bootstrap script tags the persistent resource groups, storage account, and ACR. The reviewed build workflow also tags supported AKS-managed resources in the node resource group. Azure role assignments do not support tags; Azure Policy is required for inheritance beyond resources that support tags.
 
 ## Terraform state setup
 

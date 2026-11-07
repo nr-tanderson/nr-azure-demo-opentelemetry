@@ -6,6 +6,13 @@ STATE_RESOURCE_GROUP="${STATE_RESOURCE_GROUP:-rg-nr-aks-demo-state}"
 STATE_LOCATION="${STATE_LOCATION:-eastus}"
 STATE_CONTAINER="${STATE_CONTAINER:-tfstate}"
 STATE_REGISTRY_NAME="${STATE_REGISTRY_NAME:-${STATE_STORAGE_ACCOUNT}acr}"
+DEMO_RESOURCE_GROUP="${DEMO_RESOURCE_GROUP:-rg-nrobsdemo}"
+
+az group create \
+  --name "$DEMO_RESOURCE_GROUP" \
+  --location "$STATE_LOCATION" \
+  --tags OWNER=TANDERSON PROJECT=nr-azure-demo-opentelemetry MANAGED_BY=Bootstrap \
+  --output none
 
 az group create \
   --name "$STATE_RESOURCE_GROUP" \

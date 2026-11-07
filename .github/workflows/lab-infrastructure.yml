@@ -100,3 +100,21 @@ jobs:
         env:
           OPERATION: ${{ inputs.operation }}
         run: bash scripts/lab-lock.sh bash scripts/apply-lab-plan.sh "$OPERATION"
+  finalize:
+    if: inputs.operation == 'build'
+    needs: apply
+    runs-on: ubuntu-latest
+    environment: lab-node-access
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - run: bash scripts/init-terraform.sh
+      - name: Tag managed resources and activate the lab
+        run: bash scripts/lab-lock.sh bash scripts/apply-lab-plan.sh finalize

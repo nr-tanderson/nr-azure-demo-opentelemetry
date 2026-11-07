@@ -26,13 +26,13 @@ variable "name_prefix" {
 }
 
 variable "node_count" {
-  description = "Small single-node footprint for a temporary demo; increase for availability."
+  description = "Fixed one-node footprint for this temporary, non-HA lab to bound compute cost."
   type        = number
   default     = 1
 
   validation {
-    condition     = var.node_count >= 1 && var.node_count <= 3
-    error_message = "node_count must be between 1 and 3 for this demo configuration."
+    condition     = var.node_count == 1
+    error_message = "node_count must remain 1 to keep this temporary lab's compute footprint bounded."
   }
 }
 
