@@ -11,7 +11,7 @@ if [[ "$exists" != "true" ]]; then
   printf 'Shared infrastructure/application operation lock\n' > "$scratch"
   az storage blob upload --account-name "$TFSTATE_STORAGE_ACCOUNT" --container-name "$TFSTATE_CONTAINER" --name "$lock_blob" --file "$scratch" --auth-mode login --overwrite false -o none
 fi
-lease=$(az storage blob lease acquire --account-name "$TFSTATE_STORAGE_ACCOUNT" --container-name "$TFSTATE_CONTAINER" --blob-name "$lock_blob" --auth-mode login --lease-duration -1 --query leaseId -o tsv)
+lease=$(az storage blob lease acquire --account-name "$TFSTATE_STORAGE_ACCOUNT" --container-name "$TFSTATE_CONTAINER" --blob-name "$lock_blob" --auth-mode login --lease-duration -1 -o tsv)
 cleanup() {
   az storage blob lease release --account-name "$TFSTATE_STORAGE_ACCOUNT" --container-name "$TFSTATE_CONTAINER" --blob-name "$lock_blob" --auth-mode login --lease-id "$lease" -o none || true
   rm -f "$scratch"
